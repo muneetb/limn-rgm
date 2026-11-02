@@ -1,5 +1,5 @@
 // Limn RGM web service: serves the app and the agent API.
-// On Cloud Run it sits behind Identity-Aware Proxy, so every request is from a signed-in tester.
+// On Cloud Run every request must carry a named login from the limn-rgm-users secret (see src/auth.js).
 const path = require('path');
 const express = require('express');
 const E = require('./engine/engine');
@@ -9,13 +9,21 @@ const { jbpPlanner } = require('./agents/jbp');
 const { explain } = require('./agents/explainer');
 const llm = require('./agents/llm');
 const pkg = require('../package.json');
+const fs = require('fs');
+const { basicAuth } = require('./auth');
 
 const app = express();
 app.use(express.json({ limit: '1mb' }));
+// Named logins (same secret and users.sh as the original tester page). Off when AUTH_FILE is unset, e.g. locally.
+const AUTH_FILE = process.env.AUTH_FILE;
+if (AUTH_FILE) {
+  if (!fs.existsSync(AUTH_FILE)) console.error(`[auth] AUTH_FILE ${AUTH_FILE} not found: every request will be refused until it exists.`);
+  app.use(basicAuth(AUTH_FILE));
+}
 const store = makeStore();
 let running = null;
 
-const user = req => (req.get('x-goog-authenticated-user-email') || '').replace('accounts.google.com:', '') || 'local';
+const user = req => req.user || 'local';
 
 app.get('/api/health', (req, res) => res.json({ ok: true, version: pkg.version, store: store.kind, llm: llm.enabled(), model: llm.MODEL }));
 app.get('/engine.js', (req, res) => res.type('application/javascript').sendFile(path.join(__dirname, 'engine', 'engine.js')));
@@ -66,6 +74,6 @@ app.use((err, req, res, next) => { console.error(err); res.status(500).json({ er
 
 if (require.main === module) {
   const port = process.env.PORT || 8080;
-  app.listen(port, () => console.log(`Limn RGM ${pkg.version} on :${port} (store ${store.kind}, model ${llm.enabled() ? llm.MODEL : 'off'})`));
+  app.listen(port, () => console.log(`Limn RGM ${pkg.version} on :${port} (store ${store.kind}, model ${llm.enabled() ? llm.MODEL : 'off'}, logins ${AUTH_FILE ? 'required' : 'off'})`));
 }
 module.exports = { app };

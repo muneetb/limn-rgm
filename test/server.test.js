@@ -23,3 +23,22 @@ test('API: health, latest run, JBP package, explainer without key', async () => 
     assert.strictEqual(eng.status, 200);
   } finally { srv.close(); }
 });
+
+test('named logins: refuses without a valid login, accepts users.sh-style hashes, ignores switched-off lines', async () => {
+  const { execSync } = require('child_process');
+  const h1 = execSync("openssl passwd -apr1 'right-pass'").toString().trim();
+  const f = path.join(process.env.DATA_DIR, 'htpasswd');
+  fs.writeFileSync(f, `muneet:${h1}\n#off jsmith:${h1}\n`);
+  const express = require('express');
+  const { basicAuth } = require('../src/auth');
+  const a = express(); a.use(basicAuth(f)); a.get('/api/health', (q, r) => r.send('ok')); a.get('/x', (q, r) => r.send('hi ' + q.user));
+  const srv = a.listen(0); const base = `http://127.0.0.1:${srv.address().port}`;
+  const auth = (u, p) => ({ headers: { Authorization: 'Basic ' + Buffer.from(u + ':' + p).toString('base64') } });
+  try {
+    assert.strictEqual((await fetch(base + '/x')).status, 401);
+    assert.strictEqual((await fetch(base + '/x', auth('muneet', 'wrong'))).status, 401);
+    assert.strictEqual(await (await fetch(base + '/x', auth('muneet', 'right-pass'))).text(), 'hi muneet');
+    assert.strictEqual((await fetch(base + '/x', auth('jsmith', 'right-pass'))).status, 401);
+    assert.strictEqual((await fetch(base + '/api/health')).status, 200);
+  } finally { srv.close(); }
+});

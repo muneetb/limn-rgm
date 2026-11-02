@@ -28,8 +28,8 @@ Without an `ANTHROPIC_API_KEY`, everything still runs: the agents write template
 
 ```bash
 npm install
-npm test                      # 9 tests: engine maths, optimizer constraints, agents (with a fake model), API
-npm start                     # http://localhost:8080 ; runs stored in ./data
+npm test                      # 10 tests: engine maths, optimizer constraints, agents (with a fake model), API
+npm start                     # http://localhost:8080 ; runs stored in ./data; no login locally
 ANTHROPIC_API_KEY=sk-... npm start   # with model-written text and the Explainer
 npm run agents                # one agent run from the command line
 ```
@@ -39,17 +39,25 @@ Optional settings: `LIMN_MODEL` (default `claude-sonnet-5-5`), `LIMN_FAST_MODEL`
 
 ## Deploy to Google Cloud
 
-From Cloud Shell, in your project:
+In Cloud Shell (or on a Mac with the gcloud CLI signed in):
 
 ```bash
 git clone https://github.com/muneetb/limn-rgm.git && cd limn-rgm
 ./deploy.sh
 ```
 
-The script is safe to re-run; run it again after pulling new code to redeploy. It creates, all named `limn-rgm`:
-a service account, a bucket, an optional API key secret, an image, a Cloud Run service behind Identity-Aware Proxy,
-and a Cloud Run job with a weekday 6:10 am Central schedule. Allow more testers with
-`TESTERS="you@gmail.com,tester@company.com" ./deploy.sh`.
+This deploys the agentic release as its own Cloud Run service, `limn-rgm-v2`, next to the original tester page
+(`limn-rgm`, which it does not touch). Both use the same named logins, stored as password hashes in the Secret
+Manager secret `limn-rgm-users`. The script is safe to re-run; after `git pull`, run it again to redeploy.
+
+It creates, all named `limn-rgm-v2`: a service account, a bucket for agent runs, the web service (logins required),
+and the job `limn-rgm-v2-agents` with a weekday 6:10 am Central schedule. It optionally stores a Claude API key in
+the secret `limn-rgm-anthropic-key`.
+
+## Manage access
+
+`./users.sh` manages logins for both pages: `list`, `add <name>`, `off <name>`, `on <name>`, `reset <name>`,
+`remove <name>`. Changes apply in about 30 seconds with no rebuild.
 
 ## Repository layout
 
@@ -58,7 +66,9 @@ src/engine/      engine.js (calculation spine, shared with the browser), optimiz
 src/data/        synthetic.js (52-week feed with planted events)
 src/agents/      diagnose, scout, critic, jbp, explainer, orchestrator, llm (Claude API wrapper)
 src/store/       Cloud Storage or local JSON store
+src/auth.js      named logins (htpasswd from the limn-rgm-users secret)
 src/server.js    web service and API      src/job.js   scheduled agent run
+deploy.sh, users.sh   Google Cloud deploy and login management
 public/          the app (inbox, plan, compare, assumptions, executive summary)
 docs/            architecture notes
 ```

@@ -1,93 +1,107 @@
 #!/usr/bin/env bash
-# Deploy Limn RGM to Google Cloud. Run from the repo root, in Cloud Shell or on a Mac with the
-# gcloud CLI signed in (gcloud auth login). Works with macOS's built-in bash 3.2. Safe to re-run:
-# the first run sets everything up; later runs rebuild and redeploy the current code.
+# Deploy Limn RGM (agentic release) to Google Cloud as its own service, limn-rgm-v2.
+# Run from the repo root, in Cloud Shell or on a Mac with the gcloud CLI signed in.
+# Works with macOS's built-in bash 3.2. Safe to re-run: later runs rebuild and redeploy.
 #
-# What it creates, all named limn-rgm so it stays separate from the momentum project:
-#   - service account limn-rgm, storage bucket <project>-limn-rgm, secret limn-rgm-anthropic-key
-#   - Artifact Registry repo limn-rgm and the app image
-#   - Cloud Run service limn-rgm behind Identity-Aware Proxy (only TESTERS can open it)
-#   - Cloud Run job limn-rgm-agents, started by Cloud Scheduler at 6:10 am Central on weekdays
+# Sign-in uses the same named logins as the original tester page (secret limn-rgm-users,
+# managed with ./users.sh). The original service limn-rgm is not touched.
+#
+# What it creates, all named limn-rgm-v2:
+#   - service account limn-rgm-v2, storage bucket <project>-limn-rgm-v2
+#   - Cloud Run service limn-rgm-v2 (logins required) and image in the limn-rgm Artifact Registry repo
+#   - Cloud Run job limn-rgm-v2-agents, started by Cloud Scheduler at 6:10 am Central on weekdays
+#   - optional secret limn-rgm-anthropic-key for the Claude API
 set -euo pipefail
 
 command -v gcloud >/dev/null || { echo "gcloud is not installed. Use Cloud Shell, or install the Google Cloud CLI and run: gcloud auth login"; exit 1; }
 gcloud auth list --filter=status:ACTIVE --format="value(account)" | grep -q . || { echo "gcloud is not signed in. Run: gcloud auth login"; exit 1; }
-gcloud components list --filter="id=beta" --format="value(state.name)" 2>/dev/null | grep -qi installed || echo "Note: this script uses gcloud beta commands; if prompted, allow installing the beta component."
 
 PROJECT="${PROJECT:-project-41b9f044-cbc3-4d0e-bec}"
 REGION="${REGION:-us-central1}"
-TESTERS="${TESTERS:-muneetb@gmail.com}"     # comma-separated Google accounts allowed in
+OWNER="${OWNER:-muneet}"                  # first login, created only if the logins secret does not exist yet
 
-NAME="limn-rgm"
+NAME="limn-rgm-v2"
+REPO="limn-rgm"                           # shared image repository with the original page
 SA="${NAME}@${PROJECT}.iam.gserviceaccount.com"
 BUCKET="${PROJECT}-${NAME}"
-SECRET="${NAME}-anthropic-key"
+USERS_SECRET="limn-rgm-users"
+KEY_SECRET="limn-rgm-anthropic-key"
 TAG="$(git rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M)"
-IMAGE="${REGION}-docker.pkg.dev/${PROJECT}/${NAME}/app:${TAG}"
+IMAGE="${REGION}-docker.pkg.dev/${PROJECT}/${REPO}/app:${TAG}"
 JOB="${NAME}-agents"
 
 gcloud config set project "$PROJECT" >/dev/null
-PN=$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')
 
-echo "--- 1/8 APIs"
+echo "--- 1/7 APIs"
 gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com \
-  cloudscheduler.googleapis.com secretmanager.googleapis.com iap.googleapis.com storage.googleapis.com
+  cloudscheduler.googleapis.com secretmanager.googleapis.com storage.googleapis.com
 
-echo "--- 2/8 Service account and bucket"
-gcloud iam service-accounts create "$NAME" --display-name "Limn RGM" 2>/dev/null || true
+echo "--- 2/7 Service account and bucket"
+if ! gcloud iam service-accounts describe "$SA" >/dev/null 2>&1; then
+  gcloud iam service-accounts create "$NAME" --display-name "Limn RGM v2"
+  sleep 5
+fi
 gcloud storage buckets create "gs://$BUCKET" --location "$REGION" --uniform-bucket-level-access 2>/dev/null || true
 gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" \
   --member "serviceAccount:$SA" --role roles/storage.objectUser --quiet >/dev/null
 
-echo "--- 3/8 Claude API key (optional: without it the agents run with template text and the Explainer is off)"
-SECRET_SPEC=""
-if ! gcloud secrets describe "$SECRET" >/dev/null 2>&1; then
-  read -rsp "Paste an Anthropic API key for Limn RGM and press Enter (or just press Enter to skip): " KEY; echo
-  if [ -n "${KEY}" ]; then
-    gcloud secrets create "$SECRET" --replication-policy automatic >/dev/null
-    printf '%s' "$KEY" | gcloud secrets versions add "$SECRET" --data-file=- >/dev/null
+echo "--- 3/7 Logins (shared with the original tester page)"
+OWNER_PW=""
+if ! gcloud secrets describe "$USERS_SECRET" >/dev/null 2>&1; then
+  OWNER_PW="$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-16)"
+  TMPF="$(mktemp)"
+  printf '%s:%s\n' "$OWNER" "$(openssl passwd -apr1 "$OWNER_PW")" > "$TMPF"
+  gcloud secrets create "$USERS_SECRET" --replication-policy automatic --labels app=limn-rgm --data-file "$TMPF" >/dev/null
+  rm -f "$TMPF"
+fi
+gcloud secrets add-iam-policy-binding "$USERS_SECRET" --member "serviceAccount:$SA" \
+  --role roles/secretmanager.secretAccessor --quiet >/dev/null
+echo "Using logins from secret $USERS_SECRET."
+
+echo "--- 4/7 Claude API key (optional: without it the agents use template text and the Explainer is off)"
+KEY_SPEC=""
+if ! gcloud secrets describe "$KEY_SECRET" >/dev/null 2>&1; then
+  printf "Paste an Anthropic API key for Limn RGM and press Enter (or just press Enter to skip): "
+  stty -echo 2>/dev/null || true; read -r KEY || true; stty echo 2>/dev/null || true; echo
+  if [ -n "${KEY:-}" ]; then
+    gcloud secrets create "$KEY_SECRET" --replication-policy automatic --labels app=limn-rgm >/dev/null
+    printf '%s' "$KEY" | gcloud secrets versions add "$KEY_SECRET" --data-file=- >/dev/null
   fi
   unset KEY
 fi
-if gcloud secrets versions list "$SECRET" --filter="state=enabled" --format='value(name)' 2>/dev/null | grep -q .; then
-  gcloud secrets add-iam-policy-binding "$SECRET" --member "serviceAccount:$SA" \
+if gcloud secrets versions list "$KEY_SECRET" --filter="state=enabled" --format='value(name)' 2>/dev/null | grep -q .; then
+  gcloud secrets add-iam-policy-binding "$KEY_SECRET" --member "serviceAccount:$SA" \
     --role roles/secretmanager.secretAccessor --quiet >/dev/null
-  SECRET_SPEC="ANTHROPIC_API_KEY=${SECRET}:latest"
-  echo "Using secret $SECRET."
+  KEY_SPEC="ANTHROPIC_API_KEY=${KEY_SECRET}:latest"
+  echo "Using secret $KEY_SECRET."
 else
   echo "No key stored; deploying in template mode. Re-run this script later to add one."
 fi
 
-echo "--- 4/8 Build image $IMAGE"
-gcloud artifacts repositories create "$NAME" --repository-format docker --location "$REGION" 2>/dev/null || true
+echo "--- 5/7 Build image $IMAGE"
+gcloud artifacts repositories create "$REPO" --repository-format docker --location "$REGION" 2>/dev/null || true
 gcloud builds submit --tag "$IMAGE" .
 
 ENV="BUCKET=$BUCKET,TZ=America/Chicago"
 
-echo "--- 5/8 Web service behind Identity-Aware Proxy"
-gcloud beta run deploy "$NAME" \
+echo "--- 6/7 Web service $NAME (named logins required)"
+SECRETS="/etc/limn-users/htpasswd=${USERS_SECRET}:latest"
+if [ -n "$KEY_SPEC" ]; then SECRETS="${SECRETS},${KEY_SPEC}"; fi
+gcloud run deploy "$NAME" \
   --image "$IMAGE" --region "$REGION" --service-account "$SA" \
-  --no-allow-unauthenticated --iap \
+  --allow-unauthenticated \
   --memory 1Gi --cpu 1 --min-instances 0 --max-instances 3 --timeout 300 \
-  --set-env-vars "$ENV" ${SECRET_SPEC:+--set-secrets "$SECRET_SPEC"}
+  --set-env-vars "$ENV,AUTH_FILE=/etc/limn-users/htpasswd" \
+  --set-secrets "$SECRETS" \
+  --labels app=limn-rgm,stage=agentic-release
 
-echo "--- 6/8 Let IAP call the service, and let testers through IAP"
-gcloud beta services identity create --service=iap.googleapis.com --project="$PROJECT" >/dev/null 2>&1 || true
-gcloud run services add-iam-policy-binding "$NAME" --region "$REGION" \
-  --member "serviceAccount:service-${PN}@gcp-sa-iap.iam.gserviceaccount.com" --role roles/run.invoker --quiet >/dev/null
-IFS=',' read -ra PEOPLE <<< "$TESTERS"
-for p in "${PEOPLE[@]}"; do
-  gcloud beta iap web add-iam-policy-binding --resource-type=cloud-run --service="$NAME" --region="$REGION" \
-    --member "user:${p// /}" --role roles/iap.httpsResourceAccessor --quiet >/dev/null
-  echo "Tester allowed: ${p// /}"
-done
-
-echo "--- 7/8 Scheduled agent job: 6:10 am Central, weekdays"
+echo "--- 7/7 Scheduled agent job: 6:10 am Central, weekdays"
 gcloud run jobs deploy "$JOB" \
   --image "$IMAGE" --region "$REGION" --service-account "$SA" \
   --command node --args src/job.js \
   --task-timeout 15m --max-retries 0 --memory 1Gi --cpu 1 \
-  --set-env-vars "$ENV,RUN_TRIGGER=scheduled" ${SECRET_SPEC:+--set-secrets "$SECRET_SPEC"}
+  --set-env-vars "$ENV,RUN_TRIGGER=scheduled" ${KEY_SPEC:+--set-secrets "$KEY_SPEC"} \
+  --labels app=limn-rgm,stage=agentic-release
 gcloud run jobs add-iam-policy-binding "$JOB" --region "$REGION" \
   --member "serviceAccount:$SA" --role roles/run.invoker --quiet >/dev/null
 gcloud scheduler jobs create http "${JOB}-trigger" \
@@ -96,11 +110,14 @@ gcloud scheduler jobs create http "${JOB}-trigger" \
   --http-method POST --oauth-service-account-email "$SA" 2>/dev/null \
   || echo "Scheduler trigger already exists, leaving it"
 
-echo "--- 8/8 First agent run"
+echo "First agent run..."
 gcloud run jobs execute "$JOB" --region "$REGION" --wait
 
 URL=$(gcloud run services describe "$NAME" --region "$REGION" --format 'value(status.url)')
 echo
-echo "Limn RGM: $URL"
-echo "Sign in with a tester account. The first load after a new deploy can take a minute while IAP propagates."
-echo "Add testers later with:  TESTERS=\"a@x.com,b@y.com\" ./deploy.sh"
+echo "Limn RGM (agentic release): $URL"
+echo "Sign in with the same username and password as the original tester page."
+if [ -n "$OWNER_PW" ]; then
+  printf 'New login created (password shown only once):\n  Username: %s\n  Password: %s\n' "$OWNER" "$OWNER_PW"
+fi
+echo "Manage access for both pages with ./users.sh (list, add, off, on, reset, remove)."

@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Limn RGM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: a working JBP desk. Summary strip on top, levers left, consequences right, the deal below. */
+:root {
+  --bg: #f4f5f2;
+  --panel: #ffffff;
+  --ink: #18212b;
+  --muted: #5d6874;
+  --line: #dde1dc;
+  --accent: #23507a;
+  --accent-soft: #e5edf5;
+  --good: #2c7a4b;
+  --good-soft: #e3f1e8;
+  --bad: #b23b33;
+  --bad-soft: #f8e5e3;
+  --warn: #9a6a08;
+  --warn-soft: #f8efd9;
+  --input: #fbfbfa;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-display: "IBM Plex Serif", Georgia, serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12171d; --panel: #1a2129; --ink: #e6eaee; --muted: #9aa5b1; --line: #2c3540;
+    --accent: #7fb0dc; --accent-soft: #1f3245; --good: #6cc48f; --good-soft: #1b3326;
+    --bad: #ee8a82; --bad-soft: #3a2220; --warn: #e2b54f; --warn-soft: #3a3020; --input: #151b22;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12171d; --panel: #1a2129; --ink: #e6eaee; --muted: #9aa5b1; --line: #2c3540;
+  --accent: #7fb0dc; --accent-soft: #1f3245; --good: #6cc48f; --good-soft: #1b3326;
+  --bad: #ee8a82; --bad-soft: #3a2220; --warn: #e2b54f; --warn-soft: #3a3020; --input: #151b22;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.45; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 14px 24px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+.brand b { font-family: var(--font-display); font-size: 20px; font-weight: 600; letter-spacing: 0.2px; }
+.brand span { color: var(--muted); }
+.field { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+select { background: var(--input); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: transparent; padding: 6px 12px; cursor: pointer; border-right: 1px solid var(--line); }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--panel); }
+.badge { font-size: 12px; padding: 3px 8px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); font-weight: 600; }
+.tabs { display: flex; gap: 4px; padding: 0 24px; background: var(--panel); border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tabs a { padding: 10px 12px; color: var(--muted); text-decoration: none; border-bottom: 2px solid transparent; white-space: nowrap; }
+.tabs a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+
+main { padding: 20px 24px 48px; max-width: 1480px; margin: 0 auto; display: grid; gap: 16px; }
+.view { display: none; gap: 16px; }
+.view.on { display: grid; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+.panel h2 { font-size: 15px; font-weight: 600; }
+.panel .sub { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.ph { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 16px; margin-bottom: 12px; }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 16px; }
+.stack { display: grid; gap: 16px; align-content: start; }
+@media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
+
+.kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1200px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; text-align: left; cursor: pointer; display: grid; gap: 4px; }
+.kpi:hover { border-color: var(--accent); }
+.kpi .lab { color: var(--muted); font-size: 12px; }
+.kpi .val { font-family: var(--font-num); font-size: 20px; font-weight: 500; }
+.kpi .meta { color: var(--muted); font-size: 11.5px; }
+.kpi.lead { border-left: 3px solid var(--accent); }
+.chip { display: inline-block; font-family: var(--font-num); font-size: 12px; padding: 1px 6px; border-radius: 4px; }
+.chip.up { background: var(--good-soft); color: var(--good); }
+.chip.down { background: var(--bad-soft); color: var(--bad); }
+.chip.flat { background: var(--line); color: var(--muted); }
+.pill { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.pill.good { background: var(--good-soft); color: var(--good); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.neutral { background: var(--accent-soft); color: var(--accent); }
+
+.lockmsg { background: var(--accent-soft); color: var(--accent); padding: 8px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; }
+.stories { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn { border: 1px solid var(--line); background: var(--input); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--panel); border-color: var(--accent); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.storynote { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
+.terms { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 12px; margin: 14px 0 6px; }
+.terms label { display: grid; gap: 3px; font-size: 12px; color: var(--muted); }
+.inp { width: 100%; background: var(--input); border: 1px solid var(--line); border-radius: 5px; padding: 4px 6px; font-family: var(--font-num); font-size: 13px; text-align: right; }
+.inp.changed { border-color: var(--accent); background: var(--accent-soft); }
+.inp:disabled { opacity: 0.75; }
+input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.scn-name { width: 100%; max-width: 360px; text-align: left; font-family: var(--font-body); }
+
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+th { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+th:first-child, td:first-child { text-align: left; }
+td.l { text-align: left; }
+tr.cat td { background: var(--bg); font-weight: 600; text-align: left; font-size: 12.5px; }
+tr.sub td { font-weight: 600; }
+tr.tot td { font-weight: 600; border-top: 2px solid var(--ink); }
+td.skuname { font-weight: 500; }
+.skus .inp { width: 64px; }
+.skus .inp.w { width: 50px; }
+.skus th, .skus td { padding: 5px 4px; }
+.cell-btn { background: none; border: 0; padding: 0; cursor: pointer; font-family: var(--font-num); font-variant-numeric: tabular-nums; color: inherit; border-bottom: 1px dotted var(--muted); }
+.cell-btn:hover { color: var(--accent); border-bottom-color: var(--accent); }
+.dim { color: var(--muted); }
+.pos { color: var(--good); }
+.neg { color: var(--bad); }
+
+.deal { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 900px) { .deal { grid-template-columns: 1fr; } }
+.deal h3 { font-size: 13px; font-weight: 600; margin: 0 0 6px; }
+
+.solver { display: grid; gap: 10px; }
+.solver .row { display: grid; grid-template-columns: 150px 1fr; gap: 12px; align-items: baseline; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.solver .row:last-child { border-bottom: 0; padding-bottom: 0; }
+.solver .k { color: var(--muted); font-size: 12.5px; }
+.risk { display: grid; gap: 8px; }
+.risk .r { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; border-left: 3px solid var(--warn); }
+.risk .r small { grid-column: 1 / -1; color: var(--muted); }
+.legend { display: flex; gap: 14px; color: var(--muted); font-size: 12px; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+#bridge svg text { font-family: var(--font-body); }
+#bridge svg .n { font-family: var(--font-num); }
+
+.drawer { position: fixed; top: 0; right: 0; height: 100%; width: min(520px, 100%); background: var(--panel); border-left: 1px solid var(--line); box-shadow: -12px 0 30px rgba(0,0,0,0.12); transform: translateX(105%); transition: transform 0.2s ease; z-index: 20; display: flex; flex-direction: column; }
+.drawer.open { transform: none; }
+.drawer header { display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid var(--line); }
+.drawer .body { padding: 16px; overflow: auto; display: grid; gap: 12px; align-content: start; }
+.formula { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-family: var(--font-num); font-size: 12.5px; white-space: normal; }
+@media (prefers-reduced-motion: reduce) { .drawer { transition: none; } }
+
+.summary { max-width: 900px; justify-self: center; width: 100%; }
+.summary .head { font-family: var(--font-display); font-size: 22px; font-weight: 600; margin: 4px 0 6px; }
+.summary .big { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+@media (max-width: 700px) { .summary .big { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.summary .big > div { border-top: 2px solid var(--ink); padding-top: 6px; }
+.summary .big .lab { color: var(--muted); font-size: 12px; }
+.summary .big .val { font-family: var(--font-num); font-size: 18px; }
+.summary h3 { font-size: 13px; margin: 18px 0 6px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); }
+.note { color: var(--muted); font-size: 12.5px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 8px; align-content: start; background: var(--panel); border-top: 3px solid var(--accent); }
+.card.warn { border-top-color: var(--warn); }
+.card h3 { font-size: 15px; font-weight: 600; }
+.card .meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
+.card .nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.card .nums div { display: grid; gap: 2px; }
+.card .nums .lab { font-size: 11.5px; color: var(--muted); }
+.card .nums .v { font-family: var(--font-num); font-size: 16px; }
+.card ul { margin: 0; padding-left: 18px; color: var(--ink); font-size: 13px; display: grid; gap: 2px; }
+.card .crit { font-size: 12.5px; color: var(--muted); border-left: 2px solid var(--warn); padding-left: 8px; }
+.card .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.empty { color: var(--muted); padding: 16px; border: 1px dashed var(--line); border-radius: 10px; }
+.diag-acc { padding: 10px 0; border-bottom: 1px solid var(--line); display: grid; gap: 6px; }
+.diag-acc:last-child { border-bottom: 0; }
+.spark { display: flex; gap: 16px; flex-wrap: wrap; }
+.spark figure { margin: 0; font-size: 11.5px; color: var(--muted); }
+.ask { display: grid; gap: 6px; }
+.ask textarea { width: 100%; background: var(--input); border: 1px solid var(--line); border-radius: 6px; padding: 8px; font: inherit; color: inherit; resize: vertical; }
+.answer { border-top: 1px solid var(--line); padding: 10px 0; display: grid; gap: 4px; }
+.answer .q { font-weight: 600; }
+.answer .a { white-space: pre-wrap; }
+.answer .tr { font-size: 11.5px; color: var(--muted); font-family: var(--font-num); }
+#promo th, #promo td { padding: 5px 5px; font-size: 12.5px; }
+.log { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 13px; max-height: 420px; overflow: auto; }
+.log b { font-weight: 600; }
+.log time { color: var(--muted); font-family: var(--font-num); font-size: 11.5px; margin-right: 6px; }
+.pack h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin: 10px 0 4px; }
+.pack p { margin: 0 0 8px; }
+.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--panel); padding: 8px 14px; border-radius: 8px; font-size: 13px; display: none; z-index: 30; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><b>Limn RGM</b><span>Joint business plan</span></div>
+  <label class="field" for="acc">Account <select id="acc"></select></label>
+  <div class="field"><span id="scnlab">Scenario</span><div class="seg" id="scn" role="group" aria-labelledby="scnlab"></div></div>
+  <span class="badge" title="Every number in this prototype is invented">Synthetic data</span>
+</header>
+<nav class="tabs" aria-label="Views">
+  <a href="#inbox" data-view="inbox">Agent inbox</a>
+  <a href="#plan" data-view="plan">Plan</a>
+  <a href="#compare" data-view="compare">Compare scenarios</a>
+  <a href="#assumptions" data-view="assumptions">Assumptions</a>
+  <a href="#summary" data-view="summary">Executive summary</a>
+</nav>
+<main>
+  <section class="view" id="view-inbox">
+    <div class="panel">
+      <div class="ph">
+        <div><h2>Agent inbox</h2><div class="sub" id="runmeta">Loading the latest agent run...</div></div>
+        <div class="stories"><div class="seg" id="ifilter" role="group" aria-label="Account filter"></div><button class="btn primary" type="button" id="runbtn">Run agents now</button></div>
+      </div>
+      <div class="cards" id="cards"></div>
+    </div>
+    <div class="grid2">
+      <div class="panel"><div class="ph"><div><h2>Diagnosis</h2><div class="sub">Performance analyst: last 4 weeks against plan, in contribution dollars</div></div></div><div id="diag"></div></div>
+      <div class="panel"><div class="ph"><div><h2>Promotion evaluator</h2><div class="sub">Every promoted SKU over the past 52 weeks: incremental units against funding</div></div></div><div class="tablewrap" id="promo"></div></div>
+    </div>
+    <div class="grid2">
+      <div class="panel"><div class="ph"><div><h2>Ask the Explainer</h2><div class="sub">Answers come only from engine calls and the stored run</div></div></div>
+        <form id="askform" class="ask"><label for="askq" class="sub">Your question</label><textarea id="askq" rows="3" placeholder="Why does cutting the Marinara promotion hurt FreshWay so much?"></textarea><div class="stories"><button class="btn primary" type="submit" id="askbtn">Ask</button><span class="dim" id="askctx"></span></div></form>
+        <div id="answers"></div></div>
+      <div class="panel"><div class="ph"><div><h2>Agent activity</h2><div class="sub">What each agent did in the latest run</div></div></div><ol class="log" id="log"></ol></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-plan">
+    <div class="kpis" id="kpis"></div>
+    <div class="grid2">
+      <div class="panel" id="levers"></div>
+      <div class="stack">
+        <div class="panel">
+          <div class="ph">
+            <div><h2>Where the change comes from</h2><div class="sub">Change versus baseline by lever, shared fairly across interactions (Shapley)</div></div>
+            <div class="seg" id="bmetric" role="group" aria-label="Bridge measure">
+              <button type="button" data-m="econ" aria-pressed="true">Manufacturer</button>
+              <button type="button" data-m="ret" aria-pressed="false">Retailer</button>
+            </div>
+          </div>
+          <div id="bridge"></div>
+        </div>
+        <div class="panel"><div class="ph"><div><h2>Negotiation room</h2><div class="sub">Break-even points for this account in the selected scenario</div></div></div><div class="solver" id="solver"></div></div>
+        <div class="panel"><div class="ph"><div><h2>Assumptions this result leans on</h2><div class="sub">Each moved 25% either way; swing in manufacturer change</div></div><a class="btn" href="#assumptions">Edit assumptions</a></div><div class="risk" id="risk"></div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><div><h2>The deal for both sides</h2><div class="sub">Annual P&amp;L at this account. Select any underlined number to see how it is calculated.</div></div></div>
+      <div class="deal" id="deal"></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><div><h2>Give and get</h2><div class="sub">Each change applied alone to the baseline. The interaction line reconciles to the full scenario.</div></div>
+        <div class="legend"><span><span class="pill bad">Give</span> costs us, helps retailer</span><span><span class="pill good">Get</span> helps us, costs retailer</span><span><span class="pill neutral">Win-win</span></span></div></div>
+      <div class="tablewrap" id="ledger"></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-compare">
+    <div class="panel">
+      <div class="ph"><div><h2>Baseline and scenarios side by side</h2><div class="sub">Changes are versus baseline</div></div>
+        <div class="seg" id="cscope" role="group" aria-label="Scope">
+          <button type="button" data-s="acc" aria-pressed="true">This account</button>
+          <button type="button" data-s="all" aria-pressed="false">All accounts</button>
+        </div></div>
+      <div class="tablewrap" id="cmp"></div>
+    </div>
+    <div class="panel"><div class="ph"><div><h2>Manufacturer change by lever</h2><div class="sub" id="cmpbsub">Shapley attribution of economic contribution change</div></div></div><div class="tablewrap" id="cmpb"></div></div>
+  </section>
+
+  <section class="view" id="view-assumptions">
+    <div class="panel">
+      <div class="ph"><div><h2>Assumption register</h2><div class="sub">Modeled values are estimates that would come from data; assumptions are set by people. Changes apply to every scenario.</div></div><button class="btn" id="resetP" type="button">Reset to defaults</button></div>
+      <div class="tablewrap" id="areg"></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><div><h2>Known facts in this prototype</h2><div class="sub">In a real deployment these come from ERP, TPM and POS data. Here they are invented.</div></div></div>
+      <div class="tablewrap" id="facts"></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-summary">
+    <div class="panel summary" id="summary"></div>
+  </section>
+</main>
+
+<aside class="drawer" id="drawer" aria-hidden="true" aria-labelledby="dtitle">
+  <header><h2 id="dtitle">How this is calculated</h2><button class="btn" id="dclose" type="button">Close</button></header>
+  <div class="body" id="dbody"></div>
+</aside>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="/engine.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const SCN_IDS = ['base', 'A', 'B'];
+let P = clone(P0);
+let SCN = { A: clone(BASE), B: clone(BASE) };
+let NAMES = { base: 'Baseline', A: 'Scenario A', B: 'Scenario B' };
+let ui = { acc: 'fw', scn: 'A', metric: 'econ', scope: 'acc' };
+
+// default: preload the two stories
+STORIES.otc.apply(SCN.A); NAMES.A = STORIES.otc.name;
+STORIES.pasta.apply(SCN.B); NAMES.B = STORIES.pasta.name;
+try {
+  const saved = JSON.parse(localStorage.getItem('limn-rgm-v2') || 'null');
+  if (saved && saved.SCN && saved.NAMES) { SCN = saved.SCN; NAMES = saved.NAMES; if (saved.P) P = saved.P; if (saved.ui) Object.assign(ui, saved.ui); }
+} catch (e) {}
+function save() { try { localStorage.setItem('limn-rgm-v2', JSON.stringify({ SCN, NAMES, P, ui })); } catch (e) {} }
+
+const stateOf = (sid, aid) => sid === 'base' ? BASE[aid] : SCN[sid][aid];
+const calc = (sid, aid) => computeAccount(aid, stateOf(sid, aid), P);
+function calcAll(sid) {
+  const rs = ACCOUNTS.map(a => calc(sid, a.id));
+  const tot = {};
+  for (const k of Object.keys(rs[0].tot)) tot[k] = rs.reduce((s, r) => s + r.tot[k], 0);
+  tot.retPct = tot.retSales ? tot.retTotal / tot.retSales : 0;
+  const cats = {};
+  for (const c of ['otc', 'pasta']) {
+    const own = rs.reduce((s, r) => s + r.cats[c].consUnits, 0);
+    const shares = rs.map(r => r.cats[c]);
+    const comp = ACCOUNTS.reduce((s, a, i) => s + (shares[i].share ? shares[i].consUnits / shares[i].share - shares[i].consUnits : 0), 0);
+    cats[c] = { consUnits: own, share: own / (own + comp) };
+  }
+  return { tot, cats };
+}
+
+// formatting
+const MINUS = '−';
+function money(v, signed) {
+  const a = Math.abs(v), s = v < 0 ? MINUS : (signed ? '+' : '');
+  if (a >= 1e6) return s + '$' + (a / 1e6).toFixed(2) + 'M';
+  if (a >= 1e3) return s + '$' + Math.round(a / 1e3).toLocaleString('en-US') + 'K';
+  return s + '$' + Math.round(a);
+}
+function count(v, signed) {
+  const a = Math.abs(v), s = v < 0 ? MINUS : (signed ? '+' : '');
+  if (a >= 1e6) return s + (a / 1e6).toFixed(2) + 'M';
+  if (a >= 1e3) return s + Math.round(a / 1e3).toLocaleString('en-US') + 'K';
+  return s + Math.round(a);
+}
+const pct = (v, dp = 1) => (v * 100).toFixed(dp) + '%';
+const pts = v => (v >= 0 ? '+' : MINUS) + Math.abs(v * 100).toFixed(1) + ' pts';
+function chip(d, base, kind, inverse) {
+  const good = inverse ? d < 0 : d > 0;
+  const cls = Math.abs(d) < 1e-9 ? 'flat' : good ? 'up' : 'down';
+  let txt;
+  if (kind === 'pts') txt = pts(d);
+  else if (base) txt = (d >= 0 ? '+' : MINUS) + Math.abs(d / base * 100).toFixed(1) + '%';
+  else txt = kind === 'count' ? count(d, true) : money(d, true);
+  return '<span class="chip ' + cls + '">' + txt + '</span>';
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// header controls
+function renderHeader() {
+  $('#acc').innerHTML = ACCOUNTS.map(a => '<option value="' + a.id + '"' + (a.id === ui.acc ? ' selected' : '') + '>' + a.name + ' (' + a.channel + ')</option>').join('');
+  $('#scn').innerHTML = SCN_IDS.map(s => '<button type="button" data-s="' + s + '" aria-pressed="' + (s === ui.scn) + '" title="' + esc(NAMES[s]) + '">' + (s === 'base' ? 'Baseline' : 'Scenario ' + s) + '</button>').join('');
+}
+$('#acc').addEventListener('change', e => { ui.acc = e.target.value; save(); renderAll(); });
+$('#scn').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; ui.scn = b.dataset.s; save(); renderAll(); });
+
+// ---------- Levers ----------
+const TERM_FIELDS = [
+  { k: 'm_otc', label: 'Retailer margin, OTC', u: '%' },
+  { k: 'm_pasta', label: 'Retailer margin, pasta', u: '%' },
+  { k: 'rebate', label: 'Annual rebate', u: '%' },
+  { k: 'oninv', label: 'On-invoice allowance', u: '%' },
+  { k: 'fund', label: 'Our share of promo cost', u: '%' },
+  { k: 'days', label: 'Payment terms (days)', u: 'd' },
+  { k: 'slot', label: 'Slotting fee per new SKU ($)', u: '$' }
+];
+const toDisp = (u, v) => u === '%' ? +(v * 100).toFixed(2) : v;
+const fromDisp = (u, v) => u === '%' ? v / 100 : v;
+
+function renderLevers() {
+  const locked = ui.scn === 'base';
+  const st = stateOf(ui.scn, ui.acc), bs = BASE[ui.acc];
+  const dis = locked ? ' disabled' : '';
+  let h = '<div class="ph"><div><h2>Levers</h2><div class="sub">' + esc(ACC[ui.acc].name) + ', ' + ACC[ui.acc].channel.toLowerCase() + ' channel. Highlighted fields differ from baseline.</div></div></div>';
+  if (locked) h += '<div class="lockmsg">Baseline is locked. Choose Scenario A or B at the top to edit levers.</div>';
+  else {
+    h += '<label class="field" for="scnname" style="margin-bottom:10px">Name <input class="inp scn-name" id="scnname" value="' + esc(NAMES[ui.scn]) + '"></label>';
+    h += '<div class="stories"><span class="dim">Load a story into ' + (ui.scn === 'A' ? 'Scenario A' : 'Scenario B') + ':</span>' +
+      '<button class="btn" type="button" data-story="otc">OTC downsize plus distribution</button>' +
+      '<button class="btn" type="button" data-story="pasta">Pasta promotion plus 32 oz</button>' +
+      '<button class="btn" type="button" data-story="reset">Reset to baseline</button></div>';
+  }
+  h += '<div class="terms">' + TERM_FIELDS.map(f => {
+    const v = st.terms[f.k], ch = Math.abs(v - bs.terms[f.k]) > 1e-9;
+    return '<label for="t_' + f.k + '">' + f.label + '<input class="inp' + (ch ? ' changed' : '') + '" id="t_' + f.k + '" type="number" step="' + (f.u === '%' ? '0.5' : f.u === 'd' ? '1' : '1000') + '" data-path="t.' + f.k + '" data-u="' + f.u + '" value="' + toDisp(f.u, v) + '"' + dis + '></label>';
+  }).join('') + '</div>';
+  h += '<div class="tablewrap"><table class="skus"><thead><tr><th>SKU</th><th>Listed</th><th>Pack size</th><th>Shelf $</th><th>$ per unit</th><th>Promo wks</th><th>Depth %</th><th>ACV %</th><th>Retailer margin</th></tr></thead><tbody>';
+  for (const cat of ['otc', 'pasta']) {
+    h += '<tr class="cat"><td colspan="9">' + CATS[cat].name + ' &middot; ' + CATS[cat].brand + ' &middot; $ per unit is per ' + CATS[cat].unit + '</td></tr>';
+    for (const s of SKUS.filter(x => x.cat === cat)) {
+      const L = st.lines[s.id], B = bs.lines[s.id];
+      const c = f => Math.abs(+L[f] - +B[f]) > 1e-9 ? ' changed' : '';
+      const inp = (f, u, step, cls) => '<input class="inp' + (cls || '') + c(f) + '" type="number" step="' + step + '" aria-label="' + s.name + ' ' + f + '" id="l_' + s.id + '_' + f + '" data-path="l.' + s.id + '.' + f + '" data-u="' + u + '" value="' + toDisp(u, L[f]) + '"' + dis + '>';
+      h += '<tr><td class="skuname">' + s.name + '</td>' +
+        '<td><input type="checkbox" aria-label="' + s.name + ' listed" id="l_' + s.id + '_on" data-path="l.' + s.id + '.on"' + (L.on ? ' checked' : '') + dis + (L.on !== B.on ? ' style="outline:2px solid var(--accent)"' : '') + '></td>' +
+        '<td>' + inp('size', 'n', '1', ' w') + '</td><td>' + inp('shelf', 'n', '0.01') + '</td>' +
+        '<td class="num dim" id="pu_' + s.id + '"></td>' +
+        '<td>' + inp('w', 'n', '1', ' w') + '</td><td>' + inp('d', '%', '1', ' w') + '</td><td>' + inp('acv', '%', '1', ' w') + '</td>' +
+        '<td id="fl_' + s.id + '"></td></tr>';
+    }
+  }
+  h += '</tbody></table></div><p class="note">ACV is the share of the retailer’s stores carrying the SKU. Unlisted SKUs show the terms they would launch on; ticking Listed adds them with a slotting fee and some cannibalization.</p>';
+  $('#levers').innerHTML = h;
+  updateDerived();
+}
+function updateDerived() {
+  const st = stateOf(ui.scn, ui.acc), r = calc(ui.scn, ui.acc), hurdle = ACC[ui.acc].hurdle;
+  for (const s of SKUS) {
+    const L = st.lines[s.id];
+    const pu = L.shelf / L.size;
+    $('#pu_' + s.id).textContent = s.cat === 'otc' ? (pu * 100).toFixed(1) + '¢' : (pu * 100).toFixed(1) + '¢';
+    const x = r.lines[s.id];
+    let f = '<span class="dim">not listed</span>';
+    if (x.on) f = x.retPct < hurdle - 0.05 ? '<span class="pill bad" title="Retailer margin ' + pct(x.retPct) + ' vs hurdle ' + pct(hurdle, 0) + '">Delist risk</span>' : x.retPct < hurdle ? '<span class="pill warn" title="Retailer margin ' + pct(x.retPct) + '">Below hurdle</span>' : '<span class="num dim">' + pct(x.retPct) + '</span>';
+    $('#fl_' + s.id).innerHTML = f;
+  }
+}
+$('#levers').addEventListener('input', e => {
+  const t = e.target;
+  if (t.id === 'scnname') { NAMES[ui.scn] = t.value || ('Scenario ' + ui.scn); save(); renderHeaderTitles(); return; }
+  const path = t.dataset.path; if (!path || ui.scn === 'base') return;
+  const st = SCN[ui.scn][ui.acc], bs = BASE[ui.acc];
+  const parts = path.split('.');
+  let val;
+  if (t.type === 'checkbox') val = t.checked ? 1 : 0;
+  else { val = parseFloat(t.value); if (!isFinite(val)) return; val = fromDisp(t.dataset.u, val); }
+  if (parts[0] === 't') {
+    if (parts[1] === 'days') val = Math.max(0, Math.round(val));
+    if (parts[1].startsWith('m_') || ['rebate', 'oninv', 'fund'].includes(parts[1])) val = Math.max(0, Math.min(0.9, val));
+    st.terms[parts[1]] = val;
+    t.classList.toggle('changed', Math.abs(val - bs.terms[parts[1]]) > 1e-9);
+  } else {
+    const [, id, f] = parts;
+    if (f === 'size') val = Math.max(1, Math.round(val));
+    if (f === 'shelf') val = Math.max(0.01, val);
+    if (f === 'w') val = Math.max(0, Math.min(52, Math.round(val)));
+    if (f === 'acv') val = Math.max(0.01, Math.min(1, val));
+    if (f === 'd') val = Math.max(0, Math.min(0.9, val));
+    st.lines[id][f] = val;
+    if (t.type === 'checkbox') t.style.outline = (val !== bs.lines[id].on) ? '2px solid var(--accent)' : '';
+    else t.classList.toggle('changed', Math.abs(val - bs.lines[id][f]) > 1e-9);
+  }
+  save(); updateDerived(); renderOutputs();
+});
+$('#levers').addEventListener('click', e => {
+  const b = e.target.closest('[data-story]'); if (!b || ui.scn === 'base') return;
+  const k = b.dataset.story;
+  SCN[ui.scn] = clone(BASE);
+  if (k === 'reset') NAMES[ui.scn] = 'Scenario ' + ui.scn;
+  else { STORIES[k].apply(SCN[ui.scn]); NAMES[ui.scn] = STORIES[k].name; ui.acc = 'fw'; toast(STORIES[k].note); }
+  save(); renderAll();
+});
+function renderHeaderTitles() { renderHeader(); }
+
+// ---------- KPIs ----------
+function renderKPIs() {
+  const b = calc('base', ui.acc), s = calc(ui.scn, ui.acc), hurdle = ACC[ui.acc].hurdle;
+  const rng = deltaRange(ui.acc, stateOf(ui.scn, ui.acc), P, 'econ');
+  const showRange = ui.scn !== 'base';
+  const cards = [
+    { key: 'econ', lead: true, lab: 'Our economic contribution', val: money(s.tot.econ), ch: chip(s.tot.econ - b.tot.econ), meta: showRange ? 'Change range ' + money(rng.lo, true) + ' to ' + money(rng.hi, true) : 'After trade, cost and working capital' },
+    { key: 'net', lab: 'Our net revenue', val: money(s.tot.net), ch: chip(s.tot.net - b.tot.net, b.tot.net), meta: 'Baseline ' + money(b.tot.net) },
+    { key: 'retTotal', lab: 'Retailer total margin', val: money(s.tot.retTotal), ch: chip(s.tot.retTotal - b.tot.retTotal), meta: pct(s.tot.retPct) + ' of retail sales, hurdle ' + pct(hurdle, 0) + (s.tot.retPct < hurdle ? ' (below)' : '') },
+    { key: 'trade', lab: 'Total trade investment', val: money(s.tot.trade), ch: chip(s.tot.trade - b.tot.trade, b.tot.trade, null, true), meta: pct(s.tot.trade / s.tot.gross) + ' of gross sales' },
+    { key: 'share', lab: 'Share in consumption units', val: pct(s.cats.otc.share) + ' / ' + pct(s.cats.pasta.share), ch: chip(s.cats.otc.share - b.cats.otc.share, 0, 'pts') + ' ' + chip(s.cats.pasta.share - b.cats.pasta.share, 0, 'pts'), meta: 'OTC tablets / pasta ounces at this account' },
+    { key: 'receivables', lab: 'Receivables (cash tied up)', val: money(s.tot.receivables), ch: chip(s.tot.receivables - b.tot.receivables, 0, null, true), meta: 'Carry cost ' + money(s.tot.wc) + ' a year at ' + pct(P.wacc, 0) }
+  ];
+  $('#kpis').innerHTML = cards.map(c => '<button type="button" class="kpi' + (c.lead ? ' lead' : '') + '" data-explain="' + c.key + '"><span class="lab">' + c.lab + '</span><span class="val">' + c.val + '</span><span>' + (ui.scn === 'base' ? '<span class="chip flat">baseline</span>' : c.ch) + '</span><span class="meta">' + c.meta + '</span></button>').join('');
+}
+
+// ---------- Bridge ----------
+function renderBridge() {
+  const el = $('#bridge');
+  if (ui.scn === 'base') { el.innerHTML = '<p class="note">Choose a scenario to see what each lever contributes.</p>'; return; }
+  const sh = shapley(ui.acc, stateOf(ui.scn, ui.acc), P, ui.metric);
+  const total = Object.values(sh).reduce((a, b) => a + b, 0);
+  const rows = GROUPS.map(g => ({ name: g.name, v: sh[g.id] })).concat([{ name: 'Total change', v: total, tot: true }]);
+  const max = Math.max(1, ...rows.map(r => Math.abs(r.v)));
+  const W = 560, L = 150, R = 80, rowH = 34, H = rows.length * rowH + 16;
+  const zero = L + (W - L - R) / 2, half = (W - L - R) / 2;
+  const x = v => zero + v / max * half;
+  let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Change by lever">';
+  svg += '<line x1="' + zero + '" x2="' + zero + '" y1="4" y2="' + (H - 4) + '" stroke="var(--muted)" stroke-width="1"/>';
+  rows.forEach((r, i) => {
+    const y = 8 + i * rowH, bh = 18;
+    const color = r.tot ? 'var(--accent)' : r.v >= 0 ? 'var(--good)' : 'var(--bad)';
+    const x0 = Math.min(x(0), x(r.v)), w = Math.abs(r.v) < 500 ? 0 : Math.max(1.5, Math.abs(x(r.v) - x(0)));
+    if (r.tot) svg += '<line x1="8" x2="' + (W - 8) + '" y1="' + (y - 6) + '" y2="' + (y - 6) + '" stroke="var(--line)"/>';
+    svg += '<text x="8" y="' + (y + 13) + '" font-size="12.5" fill="var(--ink)" font-weight="' + (r.tot ? 600 : 400) + '">' + r.name + '</text>';
+    svg += '<rect x="' + x0 + '" y="' + y + '" width="' + w + '" height="' + bh + '" rx="3" fill="' + color + '" fill-opacity="' + (r.tot ? 0.9 : 0.75) + '"><title>' + r.name + ': ' + money(r.v, true) + '</title></rect>';
+    const lx = r.v >= 0 ? x0 + w + 6 : x0 - 6;
+    svg += '<text class="n" x="' + lx + '" y="' + (y + 13) + '" font-size="12" text-anchor="' + (r.v >= 0 ? 'start' : 'end') + '" fill="var(--ink)">' + (Math.abs(r.v) < 500 ? '$0' : money(r.v, true)) + '</text>';
+  });
+  svg += '</svg>';
+  el.innerHTML = svg + '<p class="note">' + (ui.metric === 'econ' ? 'Our economic contribution at ' : 'Retailer total margin at ') + esc(ACC[ui.acc].name) + '. Bars sum exactly to the total change.</p>';
+}
+$('#bmetric').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; ui.metric = b.dataset.m; [...$('#bmetric').children].forEach(x => x.setAttribute('aria-pressed', x === b)); renderBridge(); });
+
+// ---------- Solvers ----------
+function renderSolver() {
+  const el = $('#solver');
+  const st = stateOf(ui.scn, ui.acc), s = calc(ui.scn, ui.acc), b = calc('base', ui.acc), hurdle = ACC[ui.acc].hurdle;
+  const d = s.tot.econ - b.tot.econ;
+  let h = '';
+  const acv = breakEvenACV(ui.acc, st, P), mh = marginHeadroom(ui.acc, st, P);
+  const status = ui.scn === 'base' ? '' : d >= 0 ? 'This scenario is ' + money(d) + ' above baseline for us.' : 'This scenario is ' + money(-d) + ' below baseline for us.';
+  h += '<div class="row"><span class="k">Position</span><span>' + (status || 'Baseline selected.') + '</span></div>';
+  let a = 'No break-even found within 60 points of ACV.';
+  if (acv !== null) a = acv <= 0 ? 'Stays above baseline unless distribution falls by more than <b class="num">' + Math.abs(acv * 100).toFixed(1) + ' pts</b> of ACV on every listed SKU.' : 'Needs <b class="num">+' + (acv * 100).toFixed(1) + ' pts</b> of ACV on every listed SKU to break even.';
+  h += '<div class="row"><span class="k">Distribution break-even</span><span>' + a + '</span></div>';
+  let m = 'No break-even within 25 points of margin.';
+  if (mh !== null) m = mh >= 0 ? 'We could give up to <b class="num">' + (mh * 100).toFixed(1) + ' more pts</b> of retailer margin in both categories before our contribution falls to baseline.' : 'To get back to baseline we would need <b class="num">' + Math.abs(mh * 100).toFixed(1) + ' pts</b> less retailer margin in both categories.';
+  h += '<div class="row"><span class="k">Margin headroom</span><span>' + m + '</span></div>';
+  const ok = s.tot.retPct >= hurdle;
+  h += '<div class="row"><span class="k">Retailer hurdle</span><span><span class="pill ' + (ok ? 'good' : 'bad') + '">' + (ok ? 'Meets hurdle' : 'Below hurdle') + '</span> Retailer earns <span class="num">' + pct(s.tot.retPct) + '</span> on retail sales against a <span class="num">' + pct(hurdle, 0) + '</span> hurdle (' + (s.tot.retTotal - b.tot.retTotal >= 0 ? 'up ' : 'down ') + money(Math.abs(s.tot.retTotal - b.tot.retTotal)) + ' versus baseline).</span></div>';
+  el.innerHTML = h;
+}
+
+// ---------- Risk ----------
+function renderRisk() {
+  const el = $('#risk');
+  if (ui.scn === 'base') { el.innerHTML = '<p class="note">Choose a scenario to rank its assumptions.</p>'; return; }
+  const list = riskRank(ui.acc, stateOf(ui.scn, ui.acc), P).filter(x => x.swing > 500).slice(0, 3);
+  if (!list.length) { el.innerHTML = '<p class="note">No assumption moves this result materially.</p>'; return; }
+  el.innerHTML = list.map(x => '<div class="r"><b>' + x.a.label + '</b><span class="num">swing ' + money(x.swing) + '</span><small>Our change ranges ' + money(x.lo, true) + ' to ' + money(x.hi, true) + '. ' + x.a.kind + ': ' + x.a.note + '.</small></div>').join('');
+}
+
+// ---------- Deal table ----------
+const LINE_DEFS = {
+  units: { label: 'Units sold (packs)', f: 'Baseline weekly units × (perceived price index ^ own elasticity) × sibling cross effects × (ACV ÷ baseline ACV) ^ distribution response, run over 52 weeks with promotion lift on promoted weeks and a post-promotion dip. Perceived price blends price per unit and shelf price by the pack perception weight.', fmt: 'count' },
+  gross: { label: 'Gross sales at list', f: 'Units × list price. List = shelf × (1 − retailer margin) ÷ (1 − on-invoice allowance).' },
+  onInv: { label: 'On-invoice allowances', f: 'Gross sales − invoice sales. The everyday allowance set in terms.', neg: true },
+  invSales: { label: 'Invoice sales', f: 'Units × invoice price, where invoice = shelf × (1 − retailer margin).' },
+  promoCost: { label: 'Promotion spend', f: 'Promoted units × shelf price × depth × our share of promo cost.', neg: true },
+  rebate: { label: 'Rebates', f: 'Rebate % × invoice sales.', neg: true },
+  slotting: { label: 'Slotting fees', f: 'Slotting fee × each SKU newly listed at this account.', neg: true },
+  net: { label: 'Net revenue', f: 'Invoice sales − promotion spend − rebates − slotting fees.' },
+  cogs: { label: 'Cost of goods', f: 'Units × (fixed pack cost + cost per tablet or ounce × pack size).', neg: true },
+  gp: { label: 'Gross profit', f: 'Net revenue − cost of goods.' },
+  freight: { label: 'Freight and handling', f: 'Units × freight per pack, which rises with pack size.', neg: true },
+  contrib: { label: 'Contribution', f: 'Gross profit − freight and handling.' },
+  wc: { label: 'Working capital carry', f: 'Net revenue × payment days ÷ 365 × cost of capital.', neg: true },
+  econ: { label: 'Economic contribution', f: 'Contribution − working capital carry. This is the number every lever is judged on.' },
+  receivables: { label: 'Receivables', f: 'Net revenue × payment days ÷ 365. Cash we have shipped for but not yet collected.' },
+  trade: { label: 'Total trade investment', f: 'On-invoice allowances + promotion spend + rebates + slotting fees.' },
+  retSales: { label: 'Retail sales', f: 'Units × shelf price − promoted units × shelf price × depth.' },
+  retCost: { label: 'Cost of goods (invoice)', f: 'Units × invoice price paid to us.', neg: true, src: 'invSales' },
+  retFund: { label: 'Promotion funding received', f: 'Our share of promotion cost, reimbursed to the retailer.', src: 'promoCost' },
+  retFront: { label: 'Front margin', f: 'Retail sales − invoice cost + promotion funding received.' },
+  retRebate: { label: 'Rebates received', f: 'Rebate % × invoice sales.', src: 'rebate' },
+  retSlot: { label: 'Slotting fees received', f: 'Fees for new listings.', src: 'slotting' },
+  retBack: { label: 'Back margin', f: 'Rebates + slotting fees received.' },
+  retTotal: { label: 'Total retailer margin', f: 'Front margin + back margin. Compared with the retailer’s category hurdle.' },
+  consUnits: { label: 'Consumption volume', f: 'Units × pack size (tablets or ounces).', fmt: 'count' },
+  share: { label: 'Share in consumption units', f: 'Our tablets (or ounces) ÷ (ours + competitors at this account). Competitor volume is held constant.' }
+};
+const MFR_ROWS = [['units'], ['gross', 1], ['onInv'], ['invSales', 1], ['promoCost'], ['rebate'], ['slotting'], ['net', 1], ['cogs'], ['gp', 1], ['freight'], ['contrib', 1], ['wc'], ['econ', 2]];
+const RET_ROWS = [['units'], ['retSales', 1], ['retCost'], ['retFund'], ['retFront', 1], ['retRebate'], ['retSlot'], ['retBack', 1], ['retTotal', 2]];
+function lineVal(r, key) { const d = LINE_DEFS[key]; return r.tot[d.src || key]; }
+function dealTable(title, rows, b, s) {
+  let h = '<div><h3>' + title + '</h3><div class="tablewrap"><table><thead><tr><th>Line</th><th>Baseline</th><th>' + (ui.scn === 'base' ? 'Selected' : 'Scenario') + '</th><th>Change</th></tr></thead><tbody>';
+  for (const [k, lvl] of rows) {
+    const d = LINE_DEFS[k], bv = lineVal(b, k), sv = lineVal(s, k), dv = sv - bv;
+    const f = d.fmt === 'count' ? count : money;
+    const sign = d.neg ? MINUS + ' ' : '';
+    const good = d.neg ? dv <= 0 : dv >= 0;
+    h += '<tr class="' + (lvl === 2 ? 'tot' : lvl === 1 ? 'sub' : '') + '"><td class="l">' + (d.neg ? '<span class="dim">less </span>' : '') + d.label + '</td>' +
+      '<td class="num dim">' + sign + f(bv) + '</td><td><button type="button" class="cell-btn" data-explain="' + k + '">' + sign + f(sv) + '</button></td>' +
+      '<td class="num ' + (Math.abs(dv) < 0.5 ? 'dim' : good ? 'pos' : 'neg') + '">' + (Math.abs(dv) < 0.5 ? '0' : f(dv, true)) + '</td></tr>';
+  }
+  if (rows === RET_ROWS) {
+    h += '<tr><td class="l">Margin on retail sales</td><td class="num dim">' + pct(b.tot.retPct) + '</td><td class="num">' + pct(s.tot.retPct) + '</td><td class="num">' + (ui.scn === 'base' ? '0' : pts(s.tot.retPct - b.tot.retPct)) + '</td></tr>';
+  }
+  return h + '</tbody></table></div></div>';
+}
+function renderDeal() {
+  const b = calc('base', ui.acc), s = calc(ui.scn, ui.acc);
+  $('#deal').innerHTML = dealTable('Manufacturer (us)', MFR_ROWS, b, s) + dealTable(esc(ACC[ui.acc].name), RET_ROWS, b, s);
+}
+
+// ---------- Ledger ----------
+function renderLedger() {
+  const el = $('#ledger');
+  if (ui.scn === 'base') { el.innerHTML = '<p class="note">Choose a scenario to list its concessions and gains.</p>'; return; }
+  const L = ledger(ui.acc, stateOf(ui.scn, ui.acc), P);
+  if (!L.items.length) { el.innerHTML = '<p class="note">No changes at this account in ' + esc(NAMES[ui.scn]) + '. Try another account or edit the levers.</p>'; return; }
+  const cls = { 'Give': 'bad', 'Get': 'good', 'Win-win': 'neutral', 'Lose-lose': 'warn' };
+  const cv = v => '<td class="num ' + (Math.abs(v) < 0.5 ? 'dim' : v > 0 ? 'pos' : 'neg') + '">' + money(v, true) + '</td>';
+  let h = '<table><thead><tr><th>Change</th><th>From and to</th><th>Us</th><th>Retailer</th><th>Type</th></tr></thead><tbody>';
+  for (const it of L.items.sort((a, b) => Math.abs(b.mfr) - Math.abs(a.mfr))) h += '<tr><td>' + esc(it.label) + '</td><td class="l dim">' + esc(it.detail) + '</td>' + cv(it.mfr) + cv(it.ret) + '<td><span class="pill ' + cls[it.tag] + '">' + it.tag + '</span></td></tr>';
+  const b = calc('base', ui.acc).tot, s = calc(ui.scn, ui.acc).tot;
+  h += '<tr><td class="dim">Interaction between changes</td><td class="l dim">effects that only appear together</td>' + cv(L.interMfr) + cv(L.interRet) + '<td></td></tr>';
+  h += '<tr class="tot"><td>Full scenario</td><td></td>' + cv(s.econ - b.econ) + cv(s.retTotal - b.retTotal) + '<td></td></tr></tbody></table>';
+  el.innerHTML = h;
+}
+
+// ---------- Explain drawer ----------
+function explain(key) {
+  const d = LINE_DEFS[key]; if (!d) return;
+  const b = calc('base', ui.acc), s = calc(ui.scn, ui.acc);
+  let h = '<div><b>' + d.label + '</b><div class="sub">' + esc(ACC[ui.acc].name) + ', ' + esc(NAMES[ui.scn]) + ' versus baseline</div></div><div class="formula">' + d.f + '</div>';
+  if (key === 'share') {
+    h += '<table><thead><tr><th>Category</th><th>Baseline</th><th>Scenario</th><th>Change</th></tr></thead><tbody>' + ['otc', 'pasta'].map(c => '<tr><td>' + CATS[c].name + '</td><td class="num">' + pct(b.cats[c].share) + '</td><td class="num">' + pct(s.cats[c].share) + '</td><td class="num">' + pts(s.cats[c].share - b.cats[c].share) + '</td></tr>').join('') + '</tbody></table>';
+  } else {
+    const src = d.src || key;
+    const f = d.fmt === 'count' ? count : money;
+    const val = (r, id) => src === 'trade' ? r.lines[id].onInv + r.lines[id].promoCost + r.lines[id].rebate + r.lines[id].slotting : r.lines[id][src];
+    h += '<div class="tablewrap"><table><thead><tr><th>SKU</th><th>Baseline</th><th>Scenario</th><th>Change</th></tr></thead><tbody>';
+    let tb = 0, ts = 0;
+    for (const sk of SKUS) {
+      const lb = b.lines[sk.id], ls = s.lines[sk.id];
+      if (!lb.on && !ls.on) continue;
+      const vb = val(b, sk.id), vs = val(s, sk.id); tb += vb; ts += vs;
+      const extra = key === 'units' && ls.on ? '<div class="dim" style="font-size:11.5px">lift ' + ls.lift.toFixed(2) + 'x, promo units ' + count(ls.promoUnits) + '</div>' : '';
+      h += '<tr><td class="l">' + sk.name + extra + '</td><td class="num dim">' + f(vb) + '</td><td class="num">' + f(vs) + '</td><td class="num">' + f(vs - vb, true) + '</td></tr>';
+    }
+    h += '<tr class="tot"><td>Total</td><td class="num">' + f(tb) + '</td><td class="num">' + f(ts) + '</td><td class="num">' + f(ts - tb, true) + '</td></tr></tbody></table></div>';
+  }
+  h += '<p class="note">Inputs behind this line are on the Plan view (levers) and the Assumptions view (elasticities, response rates, cost of capital).</p>';
+  openDrawer('How this is calculated', h);
+  return;
+  $('#drawer').classList.add('open'); $('#drawer').setAttribute('aria-hidden', 'false'); $('#dclose').focus();
+}
+document.addEventListener('click', e => { const t = e.target.closest('[data-explain]'); if (t) explain(t.dataset.explain); });
+$('#dclose').addEventListener('click', () => { $('#drawer').classList.remove('open'); $('#drawer').setAttribute('aria-hidden', 'true'); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#dclose').click(); });
+
+// ---------- Compare ----------
+function renderCompare() {
+  const all = ui.scope === 'all';
+  const R = SCN_IDS.map(sid => all ? calcAll(sid) : calc(sid, ui.acc));
+  const rows = [
+    ['Our net revenue', r => r.tot.net, money],
+    ['Total trade investment', r => r.tot.trade, money, true],
+    ['Our economic contribution', r => r.tot.econ, money],
+    ['Receivables', r => r.tot.receivables, money, true],
+    ['Retailer total margin', r => r.tot.retTotal, money],
+    ['Retailer margin on sales', r => r.tot.retPct, v => pct(v), false, 'pts'],
+    ['Units sold (packs)', r => r.tot.units, count],
+    ['OTC share (tablets)', r => r.cats.otc.share, v => pct(v), false, 'pts'],
+    ['Pasta share (ounces)', r => r.cats.pasta.share, v => pct(v), false, 'pts']
+  ];
+  let h = '<table><thead><tr><th>' + (all ? 'All accounts' : esc(ACC[ui.acc].name)) + '</th>' + SCN_IDS.map(s => '<th>' + esc(NAMES[s]) + '</th>').join('') + '</tr></thead><tbody>';
+  for (const [lab, get, f, inverse, kind] of rows) {
+    const bv = get(R[0]);
+    h += '<tr><td>' + lab + '</td>' + R.map((r, i) => { const v = get(r), d = v - bv; return '<td class="num">' + f(v) + (i ? ' ' + (kind === 'pts' ? chip(d, 0, 'pts') : chip(d, 0, f === count ? 'count' : null, inverse)) : '') + '</td>'; }).join('') + '</tr>';
+  }
+  $('#cmp').innerHTML = h + '</tbody></table><p class="note">Trade investment and receivables chips are green when they fall.</p>';
+  // bridge comparison
+  const accs = all ? ACCOUNTS.map(a => a.id) : [ui.acc];
+  $('#cmpbsub').textContent = 'Shapley attribution of our economic contribution change, ' + (all ? 'summed across accounts' : ACC[ui.acc].name);
+  let t = '<table><thead><tr><th>Lever</th><th>' + esc(NAMES.A) + '</th><th>' + esc(NAMES.B) + '</th></tr></thead><tbody>';
+  const sh = { A: {}, B: {} };
+  for (const sid of ['A', 'B']) for (const aid of accs) { const x = shapley(aid, SCN[sid][aid], P, 'econ'); for (const g in x) sh[sid][g] = (sh[sid][g] || 0) + x[g]; }
+  for (const g of GROUPS) t += '<tr><td>' + g.name + '</td>' + ['A', 'B'].map(s => { const v = sh[s][g.id]; return '<td class="num ' + (Math.abs(v) < 500 ? 'dim' : v > 0 ? 'pos' : 'neg') + '">' + (Math.abs(v) < 500 ? '$0' : money(v, true)) + '</td>'; }).join('') + '</tr>';
+  t += '<tr class="tot"><td>Total change</td>' + ['A', 'B'].map(s => '<td class="num">' + money(Object.values(sh[s]).reduce((a, b) => a + b, 0), true) + '</td>').join('') + '</tr>';
+  $('#cmpb').innerHTML = t + '</tbody></table>';
+}
+$('#cscope').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; ui.scope = b.dataset.s; [...$('#cscope').children].forEach(x => x.setAttribute('aria-pressed', x === b)); renderCompare(); });
+
+// ---------- Assumptions ----------
+function renderAssumptions() {
+  let h = '<table><thead><tr><th>Assumption</th><th>Type</th><th>Value</th><th>Default</th><th>What it means</th></tr></thead><tbody>';
+  for (const a of ASSUMPTIONS) {
+    const v = getP(P, a.key), d = getP(P0, a.key);
+    h += '<tr><td>' + a.label + '</td><td class="l"><span class="pill ' + (a.kind === 'Modeled' ? 'neutral' : 'warn') + '">' + a.kind + '</span></td><td><input class="inp' + (v !== d ? ' changed' : '') + '" style="width:90px" type="number" step="0.05" id="a_' + a.key.replace('.', '_') + '" data-key="' + a.key + '" value="' + v + '" aria-label="' + a.label + '"></td><td class="num dim">' + d + '</td><td class="l dim" style="white-space:normal;min-width:220px">' + a.note + '</td></tr>';
+  }
+  $('#areg').innerHTML = h + '</tbody></table>';
+  let f = '<table><thead><tr><th>SKU</th><th>Pack size</th><th>Cost of goods per pack</th><th>Freight per pack</th>' + ACCOUNTS.map(a => '<th>' + a.name + ' baseline</th>').join('') + '</tr></thead><tbody>';
+  for (const s of SKUS) {
+    f += '<tr><td>' + s.name + '</td><td class="num">' + s.size + ' ' + CATS[s.cat].unitPl + '</td><td class="num">$' + (P.cogsFix[s.cat] + P.cogsVar[s.cat] * s.size).toFixed(2) + '</td><td class="num">$' + (P.frtFix[s.cat] + P.frtVar[s.cat] * s.size).toFixed(2) + '</td>' +
+      ACCOUNTS.map(a => { const L = BASE[a.id].lines[s.id]; return '<td class="num">' + (L.on ? '$' + L.shelf.toFixed(2) + ', ' + count(L.b0) + '/wk, ' + Math.round(L.acv * 100) + '% ACV' : '<span class="dim">not listed</span>') + '</td>'; }).join('') + '</tr>';
+  }
+  f += '</tbody></table><p class="note">Account terms at baseline: ' + ACCOUNTS.map(a => a.name + ' margin ' + pct(a.terms.m_otc, 0) + ' OTC / ' + pct(a.terms.m_pasta, 0) + ' pasta, rebate ' + pct(a.terms.rebate, 0) + ', ' + a.terms.days + ' days, hurdle ' + pct(a.hurdle, 0)).join('; ') + '.</p>';
+  $('#facts').innerHTML = f;
+}
+$('#areg').addEventListener('input', e => {
+  const t = e.target; if (!t.dataset.key) return;
+  const v = parseFloat(t.value); if (!isFinite(v)) return;
+  setP(P, t.dataset.key, v); t.classList.toggle('changed', v !== getP(P0, t.dataset.key)); save();
+});
+$('#resetP').addEventListener('click', () => { P = clone(P0); save(); renderAssumptions(); toast('Assumptions reset to defaults'); });
+
+// ---------- Summary ----------
+function summaryData() {
+  const b = calc('base', ui.acc), s = calc(ui.scn, ui.acc), st = stateOf(ui.scn, ui.acc);
+  const rng = deltaRange(ui.acc, st, P, 'econ');
+  const L = ui.scn === 'base' ? { items: [] } : ledger(ui.acc, st, P);
+  const risks = ui.scn === 'base' ? [] : riskRank(ui.acc, st, P).filter(x => x.swing > 500).slice(0, 3);
+  return { b, s, rng, L, risks, hurdle: ACC[ui.acc].hurdle };
+}
+function renderSummary() {
+  const { b, s, rng, L, risks, hurdle } = summaryData();
+  const acc = ACC[ui.acc], d = s.tot.econ - b.tot.econ, dr = s.tot.retTotal - b.tot.retTotal;
+  let h = '<div class="ph"><div><div class="sub">JBP summary for review &middot; synthetic data</div><div class="head">' + esc(acc.name) + ': ' + esc(NAMES[ui.scn]) + '</div></div><button class="btn primary" type="button" id="copysum">Copy as text</button></div>';
+  if (ui.scn === 'base') h += '<p class="note">Choose Scenario A or B at the top to summarize a proposal.</p>';
+  h += '<p>' + (ui.scn === 'base' ? 'Baseline plan.' : 'This plan ' + (d >= 0 ? 'adds ' : 'costs ') + '<b>' + money(Math.abs(d)) + '</b> of our economic contribution a year (range ' + money(rng.lo, true) + ' to ' + money(rng.hi, true) + ' as elasticities vary 25%), and ' + (dr >= 0 ? 'adds ' : 'takes ') + '<b>' + money(Math.abs(dr)) + '</b> ' + (dr >= 0 ? 'to' : 'from') + ' the retailer’s margin, leaving it ' + (s.tot.retPct >= hurdle ? 'above' : 'below') + ' its ' + pct(hurdle, 0) + ' hurdle at ' + pct(s.tot.retPct) + '.') + '</p>';
+  h += '<div class="big">' +
+    '<div><div class="lab">Our economic contribution</div><div class="val">' + money(s.tot.econ) + '</div>' + chip(d) + '</div>' +
+    '<div><div class="lab">Our net revenue</div><div class="val">' + money(s.tot.net) + '</div>' + chip(s.tot.net - b.tot.net, b.tot.net) + '</div>' +
+    '<div><div class="lab">Retailer total margin</div><div class="val">' + money(s.tot.retTotal) + '</div>' + chip(dr) + '</div>' +
+    '<div><div class="lab">Cash tied up (receivables)</div><div class="val">' + money(s.tot.receivables) + '</div>' + chip(s.tot.receivables - b.tot.receivables, 0, null, true) + '</div></div>';
+  h += '<h3>Both P&amp;Ls</h3><table><thead><tr><th></th><th>Baseline</th><th>Proposal</th><th>Change</th></tr></thead><tbody>' +
+    [['Our net revenue', 'net'], ['Our trade investment', 'trade'], ['Our economic contribution', 'econ'], ['Retail sales', 'retSales'], ['Retailer total margin', 'retTotal']].map(([l, k]) => '<tr><td>' + l + '</td><td class="num dim">' + money(b.tot[k]) + '</td><td class="num">' + money(s.tot[k]) + '</td><td class="num">' + money(s.tot[k] - b.tot[k], true) + '</td></tr>').join('') +
+    '<tr><td>Retailer margin on sales</td><td class="num dim">' + pct(b.tot.retPct) + '</td><td class="num">' + pct(s.tot.retPct) + '</td><td class="num">' + pts(s.tot.retPct - b.tot.retPct) + '</td></tr></tbody></table>';
+  if (L.items.length) {
+    h += '<h3>What we give and what we get</h3><table><thead><tr><th>Change</th><th>From and to</th><th>Us</th><th>Retailer margin</th></tr></thead><tbody>' +
+      L.items.slice().sort((a, b) => Math.abs(b.mfr) - Math.abs(a.mfr)).slice(0, 6).map(it => '<tr><td>' + esc(it.label) + '</td><td class="l dim">' + esc(it.detail) + '</td><td class="num">' + money(it.mfr, true) + '</td><td class="num">' + money(it.ret, true) + '</td></tr>').join('') + '</tbody></table>';
+  }
+  if (risks.length) h += '<h3>Riskiest assumptions</h3><ol>' + risks.map(x => '<li><b>' + x.a.label + '</b>: our change ranges ' + money(x.lo, true) + ' to ' + money(x.hi, true) + ' if it is 25% off.</li>').join('') + '</ol>';
+  h += '<p class="note">All figures are synthetic and for demonstration only.</p>';
+  $('#summary').innerHTML = h;
+  $('#copysum').addEventListener('click', copySummary);
+}
+function copySummary() {
+  const { b, s, rng, L, risks, hurdle } = summaryData();
+  const d = s.tot.econ - b.tot.econ;
+  const lines = ['JBP summary: ' + ACC[ui.acc].name + ', ' + NAMES[ui.scn] + ' (synthetic data)',
+    'Our economic contribution: ' + money(s.tot.econ) + ' (' + money(d, true) + ', range ' + money(rng.lo, true) + ' to ' + money(rng.hi, true) + ')',
+    'Our net revenue: ' + money(s.tot.net) + ' (' + money(s.tot.net - b.tot.net, true) + ')',
+    'Retailer total margin: ' + money(s.tot.retTotal) + ' (' + money(s.tot.retTotal - b.tot.retTotal, true) + '), ' + pct(s.tot.retPct) + ' vs ' + pct(hurdle, 0) + ' hurdle',
+    'Receivables: ' + money(s.tot.receivables) + ' (' + money(s.tot.receivables - b.tot.receivables, true) + ')'];
+  if (L.items.length) { lines.push('', 'Give and get:'); L.items.forEach(it => lines.push('- ' + it.label + ' (' + it.detail + '): us ' + money(it.mfr, true) + ', retailer ' + money(it.ret, true))); }
+  if (risks.length) { lines.push('', 'Riskiest assumptions:'); risks.forEach(x => lines.push('- ' + x.a.label + ': ' + money(x.lo, true) + ' to ' + money(x.hi, true))); }
+  const txt = lines.join('\n');
+  try { navigator.clipboard.writeText(txt).then(() => toast('Summary copied'), () => toast('Copy was blocked by the browser')); } catch (e) { toast('Copy was blocked by the browser'); }
+}
+function toast(m) { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = 'none', 3800); }
+
+// ---------- Agent inbox ----------
+let RUN = null, inboxFilter = 'all', askCard = null;
+function openDrawer(title, html) {
+  $('#dtitle').textContent = title; $('#dbody').innerHTML = html;
+  $('#drawer').classList.add('open'); $('#drawer').setAttribute('aria-hidden', 'false'); $('#dclose').focus();
+}
+async function api(path, body) {
+  const r = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ('Request failed: ' + r.status));
+  return j;
+}
+async function loadRun() {
+  try { const j = await api('/api/latest'); RUN = j.run; }
+  catch (e) { RUN = null; $('#runmeta').textContent = 'Could not load agent results: ' + e.message; }
+  if (ui.view === 'inbox') renderInbox();
+}
+const when = iso => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+function renderInbox() {
+  const accs = [{ id: 'all', name: 'All accounts' }].concat(ACCOUNTS);
+  $('#ifilter').innerHTML = accs.map(a => '<button type="button" data-f="' + a.id + '" aria-pressed="' + (a.id === inboxFilter) + '">' + (a.id === 'all' ? 'All' : a.name.split(' ')[0]) + '</button>').join('');
+  if (!RUN) { $('#cards').innerHTML = '<div class="empty">Waiting for the first agent run...</div>'; return; }
+  const posted = RUN.cards.filter(c => c.critic && c.critic.verdict !== 'Blocked');
+  const blocked = RUN.cards.length - posted.length;
+  $('#runmeta').innerHTML = 'Last run ' + when(RUN.finishedAt) + ' &middot; ' + esc(RUN.trigger) + ' &middot; ' + posted.length + ' opportunities' + (blocked ? ', ' + blocked + ' held back by the Critic' : '') + ' &middot; ' +
+    (RUN.llm.enabled ? '<span class="pill neutral">Model on</span>' : '<span class="pill warn" title="Set ANTHROPIC_API_KEY on the server to turn on model-written text and the Explainer">Model off, template text</span>') + ' <span class="badge">Synthetic data</span>';
+  const show = posted.filter(c => inboxFilter === 'all' || c.account === inboxFilter);
+  $('#cards').innerHTML = show.length ? show.map(cardHTML).join('') : '<div class="empty">No opportunities above $25K for this account in the latest run. Check the diagnosis below.</div>';
+  renderDiag(); renderPromo(); renderLog();
+  $('#askctx').textContent = askCard ? 'About: ' + (RUN.cards.find(c => c.id === askCard) || {}).title : (inboxFilter !== 'all' ? 'About: ' + ACC[inboxFilter].name : '');
+}
+function cardHTML(c) {
+  const warns = c.critic.checks.filter(x => x.level === 'warn');
+  const led = c.ledger.slice().sort((a, b) => Math.abs(b.mfr) - Math.abs(a.mfr));
+  const vcls = c.critic.verdict === 'Pass' ? 'good' : 'warn';
+  return '<article class="card' + (warns.length ? ' warn' : '') + '">' +
+    '<div class="meta"><b>' + esc(c.accountName) + '</b><span>&middot; ' + esc(c.playName) + '</span><span>&middot; found by ' + esc(c.triggeredBy) + '</span><span class="pill ' + vcls + '" style="margin-left:auto">' + esc(c.critic.verdict) + '</span></div>' +
+    '<h3>' + esc(c.title) + '</h3>' +
+    '<div class="nums"><div><span class="lab">Us, a year</span><span class="v ' + (c.mfrDelta >= 0 ? 'pos' : 'neg') + '">' + money(c.mfrDelta, true) + '</span><span class="lab">range ' + money(c.range.lo, true) + ' to ' + money(c.range.hi, true) + '</span></div>' +
+    '<div><span class="lab">Retailer, a year</span><span class="v ' + (c.retDelta >= 0 ? 'pos' : 'neg') + '">' + money(c.retDelta, true) + '</span></div>' +
+    '<div><span class="lab">Retailer margin</span><span class="v">' + pct(c.retPct) + '</span><span class="lab">hurdle ' + pct(c.hurdle, 0) + '</span></div></div>' +
+    '<p style="margin:0">' + esc(c.rationale) + '</p>' +
+    '<ul>' + led.slice(0, 4).map(l => '<li>' + esc(l.label) + ': ' + esc(l.detail) + '</li>').join('') + (led.length > 4 ? '<li class="dim">and ' + (led.length - 4) + ' more changes</li>' : '') + '</ul>' +
+    (warns.length || c.critic.note ? '<div class="crit">' + warns.map(w => '<div><b>' + esc(w.rule) + ':</b> ' + esc(w.detail) + '</div>').join('') + (c.critic.note ? '<div><b>Critic:</b> ' + esc(c.critic.note) + '</div>' : '') + '</div>' : '') +
+    (c.risks[0] ? '<div class="dim" style="font-size:12.5px">Riskiest assumption: ' + esc(c.risks[0].label) + ' (result ' + money(c.risks[0].lo, true) + ' to ' + money(c.risks[0].hi, true) + ')</div>' : '') +
+    '<div class="acts"><button class="btn primary" type="button" data-open="' + c.id + '">Open in Plan</button><button class="btn" type="button" data-jbp="' + c.id + '">Build JBP package</button><button class="btn" type="button" data-ask="' + c.id + '">Ask about this</button></div></article>';
+}
+function spark(series, label) {
+  if (!series) return '';
+  const W = 200, H = 44, all = series.actual.concat(series.plan), max = Math.max(...all), min = Math.min(...all);
+  const y = v => H - 4 - (v - min) / Math.max(1, max - min) * (H - 8), x = i => i / 51 * W;
+  const pts = arr => arr.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' ');
+  return '<figure><svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + label + ' weekly units, actual and plan"><polyline points="' + pts(series.plan) + '" fill="none" stroke="var(--muted)" stroke-dasharray="3 3" stroke-width="1"/><polyline points="' + pts(series.actual) + '" fill="none" stroke="var(--accent)" stroke-width="1.5"/></svg><figcaption>' + label + ': actual (solid) vs plan, 52 weeks</figcaption></figure>';
+}
+function renderDiag() {
+  const accs = ACCOUNTS.filter(a => inboxFilter === 'all' || a.id === inboxFilter);
+  $('#diag').innerHTML = accs.map(a => {
+    const d = RUN.diagnosis[a.id];
+    return '<div class="diag-acc"><b>' + a.name + '</b><div>' + esc(d.narrative) + '</div>' +
+      (d.items.length ? '<table><thead><tr><th>Cause</th><th>SKUs</th><th>Units vs plan</th><th>4 weeks</th><th>A year if it persists</th></tr></thead><tbody>' + d.items.map(i => '<tr><td>' + esc(i.label) + '</td><td class="l dim" style="white-space:normal">' + esc(i.skus.join(', ')) + '</td><td class="num">' + pct(i.unitsPct) + '</td><td class="num ' + (i.impact4w < 0 ? 'neg' : 'pos') + '">' + money(i.impact4w, true) + '</td><td class="num">' + money(i.annualized, true) + '</td></tr>').join('') + '</tbody></table>' : '') +
+      '<div class="spark">' + spark(RUN.weekly[a.id + ':otc'], 'OTC') + spark(RUN.weekly[a.id + ':pasta'], 'Pasta') + '</div></div>';
+  }).join('');
+}
+function renderPromo() {
+  const rows = RUN.promoEvals.filter(e => inboxFilter === 'all' || e.account === inboxFilter).sort((a, b) => a.profit - b.profit);
+  const cls = { Losing: 'bad', 'Break-even': 'warn', Marginal: 'neutral', Earning: 'good' };
+  $('#promo').innerHTML = '<table><thead><tr><th>SKU</th><th>Account</th><th>Weeks</th><th>Depth</th><th>Lift</th><th>Funding</th><th>Profit</th><th>Verdict</th></tr></thead><tbody>' +
+    rows.map(e => '<tr><td>' + esc(e.skuName) + '</td><td class="l">' + esc(e.accountName.split(' ')[0]) + '</td><td class="num">' + e.weeksOnDeal + '</td><td class="num">' + Math.round(e.depth * 100) + '%</td><td class="num">' + e.observedLift.toFixed(2) + 'x</td><td class="num">' + money(e.funding) + '</td><td class="num ' + (e.profit < 0 ? 'neg' : 'pos') + '">' + money(e.profit, true) + '</td><td><span class="pill ' + cls[e.verdict] + '">' + e.verdict + '</span></td></tr>').join('') +
+    '</tbody></table><p class="note">Profit = incremental units x our unit contribution, minus our funding on every promoted unit, including the post-promotion dip.</p>';
+}
+function renderLog() {
+  $('#log').innerHTML = RUN.log.map(l => '<li><time>' + new Date(l.t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' }) + '</time><b>' + esc(l.agent) + '</b>: ' + esc(l.msg) + '</li>').join('') +
+    (RUN.llm.enabled ? '<li class="dim">Model calls: ' + RUN.llm.calls + ', tokens in ' + RUN.llm.inputTokens.toLocaleString() + ' / out ' + RUN.llm.outputTokens.toLocaleString() + '</li>' : '');
+}
+function packHTML(p) {
+  const tbl = (rows) => '<table><thead><tr><th></th><th>Baseline</th><th>Plan</th><th>Change</th></tr></thead><tbody>' + rows.map(r => '<tr><td>' + r.label + '</td><td class="num dim">' + money(r.base) + '</td><td class="num">' + money(r.plan) + '</td><td class="num">' + money(r.delta, true) + '</td></tr>').join('') + '</tbody></table>';
+  return '<div class="pack"><div><b>' + esc(p.accountName) + ': ' + esc(p.title) + '</b><div class="sub">Drafted by the JBP planner' + (p.writtenBy === 'template' ? ' (template text; model off)' : '') + '. Nothing has been sent.</div></div>' +
+    '<h3>For our executive</h3>' + p.execSummary.map(s => '<p>' + esc(s) + '</p>').join('') +
+    '<h3>Proposal for the retailer buyer</h3>' + p.proposal.map(s => '<p>' + esc(s) + '</p>').join('') +
+    '<h3>Meeting talking points</h3><ul>' + p.talkingPoints.map(s => '<li>' + esc(s) + '</li>').join('') + '</ul>' +
+    '<h3>Our P&amp;L</h3>' + tbl(p.pnl.manufacturer) + '<h3>Retailer P&amp;L</h3>' + tbl(p.pnl.retailer) +
+    '<p class="note">Retailer margin rate ' + pct(p.pnl.retPct.base) + ' to ' + pct(p.pnl.retPct.plan) + '. Synthetic data.</p>' +
+    '<button class="btn primary" type="button" id="copypack">Copy proposal and summary</button></div>';
+}
+$('#view-inbox').addEventListener('click', async e => {
+  const f = e.target.closest('[data-f]');
+  if (f) { inboxFilter = f.dataset.f; askCard = null; renderInbox(); return; }
+  const o = e.target.closest('[data-open]');
+  if (o) {
+    const c = RUN.cards.find(x => x.id === o.dataset.open);
+    SCN.A = clone(BASE); SCN.A[c.account] = clone(c.state); NAMES.A = c.title;
+    ui.scn = 'A'; ui.acc = c.account; save(); renderHeader(); location.hash = 'plan';
+    toast('Loaded into Scenario A. Adjust any lever to see the effect.');
+    return;
+  }
+  const j = e.target.closest('[data-jbp]');
+  if (j) {
+    j.disabled = true; j.textContent = 'Drafting...';
+    try {
+      const { package: p } = await api('/api/jbp', { cardId: j.dataset.jbp });
+      openDrawer('JBP package', packHTML(p));
+      $('#copypack').addEventListener('click', () => {
+        const txt = [p.accountName + ': ' + p.title, '', 'Executive summary', ...p.execSummary, '', 'Proposal', ...p.proposal, '', 'Talking points', ...p.talkingPoints.map(s => '- ' + s)].join('\n');
+        try { navigator.clipboard.writeText(txt).then(() => toast('Copied'), () => toast('Copy was blocked by the browser')); } catch (err) { toast('Copy was blocked by the browser'); }
+      });
+    } catch (err) { toast(err.message); }
+    j.disabled = false; j.textContent = 'Build JBP package';
+    return;
+  }
+  const a = e.target.closest('[data-ask]');
+  if (a) { askCard = a.dataset.ask; renderInbox(); $('#askq').focus(); $('#askq').scrollIntoView({ block: 'center' }); }
+});
+$('#runbtn').addEventListener('click', async () => {
+  const b = $('#runbtn'); b.disabled = true; b.textContent = 'Agents running...';
+  try { const j = await api('/api/agents/run', {}); RUN = j.run; toast('Agent run finished'); renderInbox(); }
+  catch (err) { toast(err.message); }
+  b.disabled = false; b.textContent = 'Run agents now';
+});
+$('#askform').addEventListener('submit', async e => {
+  e.preventDefault();
+  const q = $('#askq').value.trim(); if (!q) return;
+  const box = document.createElement('div'); box.className = 'answer';
+  box.innerHTML = '<div class="q">' + esc(q) + '</div><div class="a dim">Thinking...</div>';
+  $('#answers').prepend(box); $('#askbtn').disabled = true;
+  try {
+    const out = await api('/api/explain', { question: q, context: { account: inboxFilter !== 'all' ? inboxFilter : undefined, cardId: askCard || undefined } });
+    box.querySelector('.a').classList.remove('dim'); box.querySelector('.a').textContent = out.text;
+    if (out.trace && out.trace.length) box.insertAdjacentHTML('beforeend', '<div class="tr">Tools used: ' + out.trace.map(t => esc(t.tool)).join(', ') + '</div>');
+  } catch (err) { box.querySelector('.a').textContent = err.message; }
+  $('#askbtn').disabled = false; $('#askq').value = '';
+});
+loadRun();
+
+// ---------- routing ----------
+const VIEWS = ['inbox', 'plan', 'compare', 'assumptions', 'summary'];
+function route() {
+  const v = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'inbox';
+  VIEWS.forEach(x => $('#view-' + x).classList.toggle('on', x === v));
+  document.querySelectorAll('.tabs a').forEach(a => a.toggleAttribute('aria-current', a.dataset.view === v) || (a.dataset.view === v && a.setAttribute('aria-current', 'page')));
+  document.querySelectorAll('.tabs a').forEach(a => { if (a.dataset.view === v) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  ui.view = v; renderView();
+}
+function renderOutputs() { renderKPIs(); renderBridge(); renderSolver(); renderRisk(); renderDeal(); renderLedger(); }
+function renderView() {
+  if (ui.view === 'inbox') renderInbox();
+  if (ui.view === 'plan') { renderLevers(); renderOutputs(); }
+  if (ui.view === 'compare') renderCompare();
+  if (ui.view === 'assumptions') renderAssumptions();
+  if (ui.view === 'summary') renderSummary();
+}
+function renderAll() { renderHeader(); renderView(); }
+window.addEventListener('hashchange', route);
+renderHeader(); route();
+</script>
+</body>
+</html>
